@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TITRE</title>
-    <script src="js/jquery.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <style>
     * {
@@ -38,7 +38,7 @@
 
     .shape {
         position: absolute;
-        border: 1px solid black;
+        border: 0px solid black;
     }
 
     #selectionArea .shape {
@@ -53,6 +53,16 @@
         background-color: #f0f0f0;
     }
 
+    /* Canvas de prévisualisation : par-dessus tout, non interactif */
+    #previewCanvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 9999;
+    }
 </style>
 <body>
     <div id="selectionArea">
@@ -63,9 +73,12 @@
         <canvas id="triangle0" class="shape" style="border:1px solid #d3d3d3;">
         Your browser does not support the HTML canvas tag.</canvas>
         <input type="color" value="#000000" autocomplete="off">
-        <button id="ChangeMode">Changer de Mode déplacement/placement</button>
+        <button id="ChangeMode" onclick="changeMode()">Changer de Mode déplacement/placement</button>
+        <label id="showMode">draw</label>
     </div>
     <div id="drawingArea">
+        <!-- Canvas de prévisualisation en temps réel -->
+        <canvas id="previewCanvas"></canvas>
     </div>
 
     <script>
@@ -74,196 +87,306 @@
         let numberOfTriangle = 0;
 
         let selectedShape = null;
-    
+        let isDrawing = false;
+        let mode = "draw";
+
+        function changeMode() {
+            // console.log(mode);
+            if (mode == "draw") {
+                mode = "move";
+                document.getElementById("showMode").innerHTML = "move";
+            } else if (mode == "move") {
+                mode = "suppr";
+                document.getElementById("showMode").innerHTML = "suppr";
+            } else if (mode == "suppr") {
+                mode = "draw";
+                document.getElementById("showMode").innerHTML = "draw";
+                
+            }
+            // console.log(mode);
+        }
+
+        const drawingAreaEl = document.getElementById("drawingArea");
+        const previewCanvas = document.getElementById("previewCanvas");
+        const previewCtx = previewCanvas.getContext("2d");
+
+        function resizePreviewCanvas() {
+            previewCanvas.width  = drawingAreaEl.offsetWidth;
+            previewCanvas.height = drawingAreaEl.offsetHeight;
+        }
+        window.addEventListener("load", resizePreviewCanvas);
+        window.addEventListener("resize", resizePreviewCanvas);
+
+        function drawPreview(x1, y1, x2, y2) {
+            previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+            const left   = Math.min(x1, x2);
+            const top    = Math.min(y1, y2);
+            const width  = Math.abs(x2 - x1);
+            const height = Math.abs(y2 - y1);
+            if (width < 2 || height < 2) return;
+
+            const color = $("input[type='color']").val();
+            previewCtx.strokeStyle = color;
+            previewCtx.setLineDash([6, 3]);
+            previewCtx.lineWidth = 1.5;
+            previewCtx.beginPath();
+
+            if (selectedShape === "rectangle") {
+                previewCtx.rect(left, top, width, height);
+
+            } else if (selectedShape === "circle") {
+                const cx  = left + width / 2;
+                const cy  = top  + height / 2;
+                const min = Math.min(width, height);
+                previewCtx.arc(cx, cy, min / 2, 0, 2 * Math.PI);
+
+            } else if (selectedShape === "triangle") {
+                previewCtx.moveTo(left + width / 2, top);
+                previewCtx.lineTo(left + width, top + height);
+                previewCtx.lineTo(left, top + height);
+                previewCtx.closePath();
+            }
+
+            previewCtx.stroke();
+            previewCtx.setLineDash([]); // réinitialise pour les autres dessins
+        }
+
+        function clearPreview() {
+            previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        }
+
         function initSelectionShapes() {
             setTimeout(() => {
                 const shapes = document.querySelectorAll('#selectionArea .shape');
                 shapes.forEach(shape => {
-                    const width = shape.offsetWidth;
-                    const height = shape.offsetHeight;
-                    shape.width = width;
-                    shape.height = height;
+                    shape.width  = shape.offsetWidth;
+                    shape.height = shape.offsetHeight;
                 });
-                
-                drawingCircle();
-                drawingRectangle();
-                drawingTriangle();
-            }, 100);
+                drawingCircle(document.getElementById("circle" + numberOfCircle));
+                drawingRectangle(document.getElementById("rectangle" + numberOfRectangle));
+                drawingTriangle(document.getElementById("triangle" + numberOfTriangle));
+            }, 1);
         }
 
-        function drawingCircle() {
-            var c = document.getElementById("circle"+numberOfCircle);
+        function drawingCircle(c) {
             var ctx = c.getContext("2d");
-            var canvaWidth = c.width; 
+            var canvaWidth = c.width;
             var canvaHeight = c.height;
             var min = Math.min(canvaWidth, canvaHeight);
             const color = $("input[type='color']").val();
-            console.log("Couleur sélectionnée : " + color);
-
-
             ctx.clearRect(0, 0, canvaWidth, canvaHeight);
             ctx.beginPath();
-            ctx.arc(canvaWidth/2, canvaHeight/2, min/2, 0, 2*Math.PI);
-            ctx.strokeStyle = color;    
-            
+            ctx.arc(canvaWidth / 2, canvaHeight / 2, min / 2, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = color;
             ctx.stroke();
-            
-            if (numberOfCircle === 0) {
-                selectedShape = null;
-            }
         }
 
-        function drawingRectangle() { 
-            var c = document.getElementById("rectangle"+numberOfRectangle);
+        function drawingRectangle(c) {
             var ctx = c.getContext("2d");
-            var canvaWidth = c.width; 
-            var canvaHeight = c.height; 
-            const color = $("input[type='color']").val();
-            console.log("Couleur sélectionnée : " + color);
-
-
-            ctx.clearRect(0, 0, canvaWidth, canvaHeight);
-            ctx.beginPath(); 
-            ctx.rect(0, 0, canvaWidth, canvaHeight); 
-            ctx.strokeStyle = color;
-            
-            ctx.stroke(); 
-
-            if (numberOfRectangle === 0) {
-                selectedShape = null;
-            }
-        } 
-        
-        function drawingTriangle() { 
-            var c = document.getElementById("triangle"+numberOfTriangle); 
-            var ctx = c.getContext("2d"); 
-            var canvaWidth = c.width; 
+            var canvaWidth = c.width;
             var canvaHeight = c.height;
             const color = $("input[type='color']").val();
-            console.log("Couleur sélectionnée : " + color);
-
             ctx.clearRect(0, 0, canvaWidth, canvaHeight);
             ctx.beginPath();
-            ctx.moveTo(canvaWidth/2, 0);
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, canvaWidth, canvaHeight);
+            ctx.strokeStyle = color;
+            ctx.stroke();
+        }
+
+        function drawingTriangle(c) {
+            var ctx = c.getContext("2d");
+            var canvaWidth = c.width;
+            var canvaHeight = c.height;
+            const color = $("input[type='color']").val();
+            ctx.clearRect(0, 0, canvaWidth, canvaHeight);
+            ctx.beginPath();
+            ctx.moveTo(canvaWidth / 2, 0);
             ctx.lineTo(canvaWidth, canvaHeight);
             ctx.lineTo(0, canvaHeight);
             ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
             ctx.strokeStyle = color;
-            
             ctx.stroke();
-
-            if (numberOfTriangle === 0) {
-                selectedShape = null;
-            }
         }
 
         window.addEventListener('load', initSelectionShapes);
 
-        let leftUpCoords = {x: 0, y: 0}; 
-        let RightDownCoords = {x: 0, y: 0};
+        let leftUpCoords    = { x: 0, y: 0 }; 
+        let RightDownCoords = { x: 0, y: 0 };
+        function toRelative(clientX, clientY) {
+            const offset = $("#drawingArea").offset();
+            return {
+                x: clientX - offset.left,
+                y: clientY - offset.top
+            };
+        }
 
         function createCanva() {
-            console.log("Creation du canvas");
-            const drawingAreaOffset = $("#drawingArea").offset();
-            
-            const relativeLeftX = leftUpCoords.x - drawingAreaOffset.left;
-            const relativeLeftY = leftUpCoords.y - drawingAreaOffset.top;
-            const relativeRightX = RightDownCoords.x - drawingAreaOffset.left;
-            const relativeRightY = RightDownCoords.y - drawingAreaOffset.top;
+            const p1 = toRelative(leftUpCoords.x,    leftUpCoords.y);
+            const p2 = toRelative(RightDownCoords.x, RightDownCoords.y);
 
-
-            const width = Math.abs(relativeRightX - relativeLeftX); 
-            const height = Math.abs(relativeRightY - relativeLeftY);
-            const left = Math.min(relativeLeftX, relativeRightX);
-            const top = Math.min(relativeLeftY, relativeRightY);
+            const width  = Math.abs(p2.x - p1.x); 
+            const height = Math.abs(p2.y - p1.y);
+            const left   = Math.min(p1.x, p2.x);
+            const top    = Math.min(p1.y, p2.y);
 
             switch (selectedShape) {
                 case "rectangle": 
                     numberOfRectangle++;
-                    $("#drawingArea").append("<canvas id='rectangle"+numberOfRectangle+"' class='shape' width='"+width+"' height='"+height+"' style='left:"+left+"px; top:"+top+"px;'>Your browser does not support the HTML canvas tag.</canvas>"); 
-                    drawingRectangle();
+                    $("#drawingArea").append(
+                        "<canvas id='rectangle" + numberOfRectangle + "' class='shape'" +
+                        " width='" + width + "' height='" + height + "'" +
+                        " style='left:" + left + "px; top:" + top + "px;'>" +
+                        "Your browser does not support the HTML canvas tag.</canvas>"
+                    ); 
+                    drawingRectangle(document.getElementById("rectangle" + numberOfRectangle));
                     break; 
                 case "circle": 
                     numberOfCircle++; 
-                    $("#drawingArea").append("<canvas id='circle"+numberOfCircle+"' class='shape' width='"+width+"' height='"+height+"' style='left:"+left+"px; top:"+top+"px;'>Your browser does not support the HTML canvas tag.</canvas>"); 
-                    drawingCircle(); 
+                    $("#drawingArea").append(
+                        "<canvas id='circle" + numberOfCircle + "' class='shape'" +
+                        " width='" + width + "' height='" + height + "'" +
+                        " style='left:" + left + "px; top:" + top + "px;'>" +
+                        "Your browser does not support the HTML canvas tag.</canvas>"
+                    ); 
+                    drawingCircle(document.getElementById("circle" + numberOfCircle)); 
                     break; 
                 case "triangle": 
                     numberOfTriangle++; 
-                    $("#drawingArea").append("<canvas id='triangle"+numberOfTriangle+"' class='shape' width='"+width+"' height='"+height+"' style='left:"+left+"px; top:"+top+"px;'>Your browser does not support the HTML canvas tag.</canvas>"); 
-                    drawingTriangle(); 
+                    $("#drawingArea").append(
+                        "<canvas id='triangle" + numberOfTriangle + "' class='shape'" +
+                        " width='" + width + "' height='" + height + "'" +
+                        " style='left:" + left + "px; top:" + top + "px;'>" +
+                        "Your browser does not support the HTML canvas tag.</canvas>"
+                    ); 
+                    drawingTriangle(document.getElementById("triangle" + numberOfTriangle)); 
                     break;
             }
         }
 
         $("#rectangle0").click(function() {
-            console.log("Selection du rectangle");
             selectedShape = "rectangle";
-        })
+        });
 
         $("#circle0").click(function() {
-            console.log("Selection du cercle");
             selectedShape = "circle";
-        })
+        });
 
         $("#triangle0").click(function() {
-            console.log("Selection du triangle");
             selectedShape = "triangle";
-        })
-
+        });
+        
+        let selectedShapeToMove = null;
+        let initClick = { x: 0, y: 0 };
+        let finalClick = { x: 0, y: 0 };
         $(document).on("click", ".shape", function() {
-            // Empêcher pour les formes de sélection
-            if ($(this).parent().attr('id') === 'selectionArea') {
-                return;
+            if (mode == "draw") {
+                if ($(this).parent().attr('id') === 'selectionArea') return;
+                if (isDrawing) return; 
+                // changer la couleur
+                const id     = this.id;
+                if (id.startsWith("circle")) {
+                    drawingCircle(document.getElementById(id))
+                } else if (id.startsWith("rectangle")) {
+                    drawingRectangle(document.getElementById(id))
+                } else if (id.startsWith("triangle")) {
+                    drawingTriangle(document.getElementById)
+                }
+
+            } else if (mode == "move") {
+                // ne pas changer la couleur
+            } else if (mode == "suppr") {
+                if ($(this).parent().attr('id') === 'selectionArea') return;
+                $(this).remove()
             }
-            
-            console.log("changement de couleur de la forme actuelle");
-            const color = $("input[type='color']").val();
-            const ctx = this.getContext("2d");
-            const id = this.id;
-            const width = this.width;
-            const height = this.height;
-            
-            // Redessiner avec la nouvelle couleur
-            ctx.clearRect(0, 0, width, height);
-            ctx.strokeStyle = color;
-            ctx.beginPath();
-            
-            if (id.startsWith("circle")) {
-                const min = Math.min(width, height);
-                ctx.arc(width/2, height/2, min/2, 0, 2*Math.PI);
-            } else if (id.startsWith("rectangle")) {
-                ctx.rect(0, 0, width, height);
-            } else if (id.startsWith("triangle")) {
-                ctx.moveTo(width/2, 0);
-                ctx.lineTo(width, height);
-                ctx.lineTo(0, height);
-                ctx.closePath();
+        });
+        
+        $(document).on("mousedown", ".shape", function(event) {
+            if (mode == "move") {
+                if ($(this).parent().attr('id') === 'selectionArea') return;
+                selectedShapeToMove = this;
+                initClick.x = event.clientX;
+                initClick.y = event.clientY;
             }
-            
-            ctx.stroke();
         })
 
         $("#drawingArea").mousedown(function(event) { 
-            console.log("Selection de la zone de dessin"); 
-            if (selectedShape === null) {
-                console.log("Aucune forme sélectionnée"); 
-            } else {
+            if (mode == "draw") {
+                if (selectedShape === null) return;
+                isDrawing = true;
                 leftUpCoords.x = event.clientX; 
                 leftUpCoords.y = event.clientY; 
+            } else if (mode == "move") {
+                // voir fonction $(document).on("mousedown", ".shape", function(event) {
             }
-        })
+        });
+
+        $("#drawingArea").mousemove(function(event) {
+            if (mode == "draw") {
+                if (!isDrawing || selectedShape === null) return;
+    
+                const p1 = toRelative(leftUpCoords.x, leftUpCoords.y);
+                const p2 = toRelative(event.clientX,  event.clientY);
+                drawPreview(p1.x, p1.y, p2.x, p2.y);
+            }
+        });
 
         $("#drawingArea").mouseup(function(event) {
-            console.log("Relachement de la souris");
-            distance = Math.sqrt(Math.pow(leftUpCoords.x-event.clientX, 2)+Math.pow(leftUpCoords.y-event.clientY, 2));
-            console.log("distance : "+distance)
-            if (selectedShape !== null && distance > 10) {
-                RightDownCoords.x = event.clientX; 
-                RightDownCoords.y = event.clientY; 
-                createCanva(); 
+            if (mode=="draw") {
+                if (!isDrawing) return;
+                isDrawing = false;
+                clearPreview();
+    
+                const distance = Math.sqrt(
+                    Math.pow(leftUpCoords.x - event.clientX, 2) +
+                    Math.pow(leftUpCoords.y - event.clientY, 2)
+                );
+    
+                if (selectedShape !== null && distance > 10) {
+                    RightDownCoords.x = event.clientX; 
+                    RightDownCoords.y = event.clientY; 
+                    createCanva(); 
+                }
+            } else if (mode == "move") {
+                finalClick.x = event.clientX; 
+                finalClick.y = event.clientY;
+                moveShape();
             }
-        })
+        });
+
+        function moveShape() {
+            if (selectedShapeToMove === null) return;
+            // console.log("moveing")
+            dx = initClick.x - finalClick.x;
+            dy = initClick.y - finalClick.y;
+
+            left = parseInt($(selectedShapeToMove).css("left"))
+            currentTop = parseInt($(selectedShapeToMove).css("top"))
+            // console.log("dx : "+dx+" dy : "+dy);
+            // console.log(selectedShapeToMove)
+            // console.log("INIT left : "+left+" top : "+currentTop)
+            $(selectedShapeToMove).css({
+                left: (left - dx) + "px",
+                top:  (currentTop  - dy) + "px"
+            });
+            // console.log("INIT left : "+parseInt($(selectedShapeToMove).css("left"))+" top : "+parseInt($(selectedShapeToMove).css("top")))
+            
+            selectedShapeToMove = null;
+            initClick = { x: 0, y: 0 };
+            finalClick = { x: 0, y: 0 };
+        }
+
+        $("#drawingArea").mouseleave(function() {
+            if (isDrawing) {
+                isDrawing = false;
+                clearPreview();
+            }
+        });
     </script>
 </body>
 </html>
