@@ -211,7 +211,7 @@ let numberOfCircle = 0;
                 } else if (id.startsWith("rectangle")) {
                     drawingRectangle(document.getElementById(id))
                 } else if (id.startsWith("triangle")) {
-                    drawingTriangle(document.getElementById)
+                    drawingTriangle(document.getElementById(id))
                 }
 
             } else if (mode == "move") {
